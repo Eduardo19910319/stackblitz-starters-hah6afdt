@@ -49,7 +49,6 @@ export default function Home() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      
       await checkRecurrences();
 
       const { data: txs, error } = await supabase
@@ -82,7 +81,6 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100">
-      
       <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6">
         <div className="mb-8">
           <Hexagon className="w-8 h-8 text-primary" strokeWidth={1.5} />
@@ -106,7 +104,6 @@ export default function Home() {
         </header>
 
         <div className="flex-1 overflow-auto p-6 space-y-6 pb-20">
-          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-primary/50 transition-colors">
               <div className="flex justify-between items-start mb-2">
@@ -137,7 +134,7 @@ export default function Home() {
                   onClick={() => setIsModalOpen(true)}
                   className="flex-1 border border-tactical bg-primary/10 hover:bg-primary/20 border-primary/20 transition-colors flex items-center justify-center gap-2 text-xs font-mono text-primary"
                 >
-                    <Plus className="w-4 h-4" /> NOVO LANÇAMENTO
+                    <Plus className="w-4 h-4" /> NOVO LANCAMENTO
                 </button>
             </div>
           </div>
