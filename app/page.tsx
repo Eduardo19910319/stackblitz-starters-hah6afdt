@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { 
   Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
   Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays, Target, 
-  PieChart, List, TrendingUp, Upload, Pencil
+  PieChart, List, TrendingUp, Upload, Pencil, Lock
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
@@ -22,13 +22,10 @@ export default function Home() {
   const [monthPending, setMonthPending] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
   
-  // MODAL & EDIÇÃO
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editData, setEditData] = useState<any>(null); // Guarda os dados para edição
-
+  const [editData, setEditData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'list' | 'analytics'>('list');
 
-  // --- FUNÇÕES ---
   function changeMonth(offset: number) {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + offset);
@@ -54,17 +51,8 @@ export default function Home() {
     refreshAll();
   }
 
-  // ABRIR MODAL DE EDIÇÃO
-  function handleEdit(transaction: any) {
-    setEditData(transaction);
-    setIsModalOpen(true);
-  }
-
-  // ABRIR MODAL NOVO
-  function handleNew() {
-    setEditData(null); // Limpa edição anterior
-    setIsModalOpen(true);
-  }
+  function handleEdit(transaction: any) { setEditData(transaction); setIsModalOpen(true); }
+  function handleNew() { setEditData(null); setIsModalOpen(true); }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -89,8 +77,7 @@ export default function Home() {
       if (payloads.length > 0) {
         setLoading(true);
         const { error } = await supabase.from('transactions').insert(payloads);
-        if (error) alert("Erro: " + error.message);
-        else { alert("Importado!"); refreshAll(); }
+        if (error) alert("Erro: " + error.message); else { alert("Importado!"); refreshAll(); }
         setLoading(false);
       }
     };
@@ -154,10 +141,16 @@ export default function Home() {
 
   const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentDate).toUpperCase();
   const inputDateValue = currentDate.toISOString().split('T')[0];
+  
+  // Analytics Data
   const expenses = transactions.filter(t => t.type === 'expense');
   const totalExpense = expenses.reduce((acc, t) => acc + Number(t.amount), 0);
   const byCategory = expenses.reduce((acc: any, t) => { acc[t.category] = (acc[t.category] || 0) + Number(t.amount); return acc; }, {});
   const sortedCategories = Object.entries(byCategory).sort(([, a]: any, [, b]: any) => b - a).map(([cat, val]: any) => ({ cat, val, percent: totalExpense > 0 ? (val / totalExpense) * 100 : 0 }));
+  
+  // FIXO vs VARIÁVEL
+  const fixedCost = expenses.filter(t => t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
+  const variableCost = expenses.filter(t => !t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
   const maxChartVal = Math.max(...historyData.map(d => Math.max(d.income, d.expense)), 100);
   const getH = (val: number) => Math.max((val / maxChartVal) * 100, 2);
 
@@ -236,7 +229,6 @@ export default function Home() {
                         <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">{t.description} <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">{t.is_recurring && <Clock className="w-3 h-3 text-primary" />} {t.accounts?.name}</span></div>
                         <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-emerald-500' : 'text-zinc-100'}`}>{t.type === 'expense' ? '- ' : '+ '} {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                         <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
-                            {/* BOTÃO EDITAR */}
                             <button onClick={() => handleEdit(t)} className="text-zinc-600 hover:text-primary transition-colors p-1"><Pencil className="w-3.5 h-3.5" /></button>
                             <button onClick={() => toggleStatus(t.id, t.status)} className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wide transition-all ${t.status === 'paid' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/10' : 'border-zinc-700 text-zinc-400 bg-zinc-800/50'}`}>{t.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />} {t.status === 'paid' ? 'PG' : 'AB'}</button>
                             <button onClick={() => deleteTransaction(t.id)} className="text-zinc-600 hover:text-red-500 transition-colors p-1"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -273,6 +265,25 @@ export default function Home() {
                                     <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden"><div className={`h-full ${colorClass}`} style={{ width: `${item.percent}%` }}></div></div>
                                 </div>
                             )})}
+                        </div>
+                    </div>
+                    
+                    {/* GRÁFICO FIXO VS VARIÁVEL */}
+                    <div className="border border-tactical bg-surface/30 p-5 flex flex-col">
+                        <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><Lock className="w-3 h-3" /> Estrutura</h3>
+                        <div className="flex-1 flex flex-col justify-center gap-6">
+                            <div>
+                                <div className="flex justify-between text-xs mb-2"><span className="text-blue-400 font-mono uppercase">Fixos (Recorrentes)</span><span className="text-white font-mono">{fixedCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${totalExpense > 0 ? (fixedCost / totalExpense) * 100 : 0}%` }}></div></div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs mb-2"><span className="text-yellow-400 font-mono uppercase">Variável (Avulso)</span><span className="text-white font-mono">{variableCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden"><div className="h-full bg-yellow-500" style={{ width: `${totalExpense > 0 ? (variableCost / totalExpense) * 100 : 0}%` }}></div></div>
+                            </div>
+                            <div className="mt-4 p-3 bg-zinc-900/50 border border-zinc-800 rounded text-center">
+                                <span className="text-[10px] text-zinc-500 uppercase block mb-1">Total Saídas</span>
+                                <span className="text-xl font-mono text-zinc-200">{totalExpense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
