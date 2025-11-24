@@ -186,4 +186,101 @@ export default function Home() {
             </div>
             <div className="flex bg-zinc-900 rounded p-1 border border-zinc-800">
                 <button onClick={() => setViewMode('list')} className={`p-1.5 rounded transition-all ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500'}`}><List className="w-4 h-4" /></button>
-                <button onClick={() => setViewMode('analytics')} className={`p-1.5 rounded transition-all ${viewMode === 'analytics' ? '
+                <button onClick={() => setViewMode('analytics')} className={`p-1.5 rounded transition-all ${viewMode === 'analytics' ? 'bg-primary/20 text-primary shadow' : 'text-zinc-500'}`}><TrendingUp className="w-4 h-4" /></button>
+            </div>
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-sm relative">
+                <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors z-10"><ChevronLeft className="w-4 h-4" /></button>
+                <div className="px-2 py-1 text-xs font-mono font-bold text-zinc-200 min-w-[100px] text-center border-x border-zinc-800 flex items-center justify-center gap-2 relative group">
+                    <span>{monthLabel.split(' ')[0]}</span>
+                    <input type="date" value={inputDateValue} onChange={handleDateJump} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20" />
+                </div>
+                <button onClick={() => changeMonth(1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors z-10"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 pb-20">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-emerald-500/30">
+              <div className="flex justify-between items-start mb-2"><span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Caixa Total</span><DollarSign className="w-4 h-4 text-emerald-600" /></div>
+              <div className="text-3xl font-mono text-white tracking-tighter">{loading ? "..." : globalBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            </div>
+            <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-primary/30">
+              <div className="flex justify-between items-start mb-2"><span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Mês Atual</span><Activity className="w-4 h-4 text-primary" /></div>
+              <div className={`text-3xl font-mono tracking-tighter ${monthBalance >= 0 ? 'text-zinc-200' : 'text-alert'}`}>{loading ? "..." : monthBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
+            </div>
+            <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-alert/30 flex flex-col justify-between">
+               <div className="flex justify-between items-start">
+                 <div><span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block">A Pagar</span><span className="text-2xl font-mono text-alert tracking-tighter block mt-1">{loading ? "..." : monthPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                 <AlertTriangle className="w-4 h-4 text-alert" />
+               </div>
+               <button onClick={handleNew} className="w-full mt-2 py-1.5 border border-tactical bg-zinc-900 hover:bg-zinc-800 flex items-center justify-center gap-2 text-[10px] font-mono text-zinc-300 font-bold uppercase tracking-wider"><Plus className="w-3 h-3" /> Input</button>
+            </div>
+          </div>
+
+          {viewMode === 'list' ? (
+             <div className="border border-tactical bg-surface/30 min-h-[400px]">
+                <div className="px-4 py-3 border-b border-tactical flex justify-between items-center bg-surface/50">
+                  <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2"><Activity className="w-3 h-3" /> Extrato</h3>
+                </div>
+                <div className="divide-y divide-zinc-800/50">
+                {loading ? <div className="p-8 text-center text-zinc-500 font-mono text-xs">...</div> : transactions.map((t) => {
+                    const Icon = CATEGORY_ICONS[t.category] || HelpCircle;
+                    const isLate = t.status === 'pending' && new Date(t.date) < new Date() && t.type === 'expense';
+                    return (
+                    <div key={t.id} className={`px-4 py-3 grid grid-cols-12 gap-2 md:gap-4 items-center hover:bg-zinc-800/30 text-xs group transition-colors ${isLate ? 'bg-red-900/10' : ''}`}>
+                        <div className="col-span-3 md:col-span-2 text-zinc-500 font-mono flex items-center gap-3">
+                            <div className={`p-1.5 rounded border ${isLate ? 'border-red-900/30 bg-red-900/10 text-red-500' : 'border-zinc-800 bg-zinc-900 text-zinc-400'}`}><Icon className="w-3.5 h-3.5" /></div>
+                            <div className="flex flex-col"><span className={`font-bold ${isLate ? 'text-red-400' : 'text-zinc-300'}`}>{t.date.split('-')[2]}</span><span className="text-[9px] uppercase">{new Date(t.date).toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3)}</span></div>
+                        </div>
+                        <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">{t.description} <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">{t.is_recurring && <Clock className="w-3 h-3 text-primary" />} {t.accounts?.name}</span></div>
+                        <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-emerald-500' : 'text-zinc-100'}`}>{t.type === 'expense' ? '- ' : '+ '} {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+                        <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
+                            {/* BOTÃO EDITAR */}
+                            <button onClick={() => handleEdit(t)} className="text-zinc-600 hover:text-primary transition-colors p-1"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => toggleStatus(t.id, t.status)} className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wide transition-all ${t.status === 'paid' ? 'border-emerald-500/20 text-emerald-500 bg-emerald-500/10' : 'border-zinc-700 text-zinc-400 bg-zinc-800/50'}`}>{t.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />} {t.status === 'paid' ? 'PG' : 'AB'}</button>
+                            <button onClick={() => deleteTransaction(t.id)} className="text-zinc-600 hover:text-red-500 transition-colors p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                    </div>
+                )})}
+                </div>
+             </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="border border-tactical bg-surface/30 p-5">
+                    <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><TrendingUp className="w-3 h-3" /> Evolução (6 Meses)</h3>
+                    <div className="h-40 flex items-end justify-between gap-2 px-2">
+                        {historyData.map((d, i) => (
+                            <div key={i} className="flex-1 flex flex-col justify-end items-center gap-1 group relative">
+                                <div className="w-full max-w-[30px] flex flex-col gap-0.5 items-center justify-end h-32 relative">
+                                    <div style={{ height: `${getH(d.income)}%` }} className="w-1.5 bg-emerald-500 rounded-full opacity-80 group-hover:opacity-100 transition-all"></div>
+                                    <div style={{ height: `${getH(d.expense)}%` }} className="w-1.5 bg-red-500 rounded-full opacity-80 group-hover:opacity-100 transition-all absolute bottom-0 left-1/2 ml-1"></div>
+                                </div>
+                                <span className="text-[9px] font-mono text-zinc-500 uppercase mt-2">{d.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="border border-tactical bg-surface/30 p-5">
+                        <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-4"><PieChart className="w-3 h-3" /> Categorias</h3>
+                        <div className="space-y-3">
+                            {sortedCategories.map((item: any) => {
+                                const Icon = CATEGORY_ICONS[item.cat] || HelpCircle; const colorClass = CATEGORY_COLORS[item.cat] || 'bg-zinc-500';
+                                return (
+                                <div key={item.cat}>
+                                    <div className="flex justify-between items-end mb-1 text-[10px] uppercase text-zinc-400"><div className="flex items-center gap-1"><Icon className="w-3 h-3" /> {CATEGORY_LABELS[item.cat]}</div><div>{item.val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div></div>
+                                    <div className="w-full h-1 bg-zinc-900 rounded-full overflow-hidden"><div className={`h-full ${colorClass}`} style={{ width: `${item.percent}%` }}></div></div>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                </div>
+            </div>
+          )}
+        </div>
+        <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => refreshAll()} initialData={editData} />
+      </main>
+    </div>
+  );
+}
