@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
@@ -12,11 +12,7 @@ export default function Home() {
   const [burnRate, setBurnRate] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- MOTOR DE RECORRÊNCIA (NOVO) ---
-  async function checkRecurrences() {
-    console.log("🔄 Verificando recorrências...");
-    
-    // 1. Busca regras ativas
+  const checkRecurrences = useCallback(async () => {
     const { data: rules } = await supabase
       .from('recurrences')
       .select('*')
@@ -25,20 +21,14 @@ export default function Home() {
     if (!rules || rules.length === 0) return;
 
     const today = new Date();
-    const currentMonthStr = today.toISOString().slice(0, 7); // "2023-11"
+    const currentMonthStr = today.toISOString().slice(0, 7);
 
     for (const rule of rules) {
-      // Verifica se a última geração foi neste mês
       const lastGen = rule.last_generated_date ? rule.last_generated_date.slice(0, 7) : '';
       
-      // Se ainda não gerou neste mês, GERA AGORA
       if (lastGen !== currentMonthStr) {
-        
-        // Define a data de vencimento para este mês
         const dueDate = new Date(today.getFullYear(), today.getMonth(), rule.day_of_month);
-        // Ajuste simples para não quebrar se o dia for 31 e o mês tiver 30
         
-        // 1. Cria a transação
         await supabase.from('transactions').insert({
           description: rule.description,
           amount: rule.amount,
@@ -49,22 +39,17 @@ export default function Home() {
           is_recurring: true
         });
 
-        // 2. Atualiza a regra dizendo "Já fiz a de Novembro"
         await supabase.from('recurrences')
           .update({ last_generated_date: dueDate.toISOString().split('T')[0] })
           .eq('id', rule.id);
-          
-        console.log(`✅ Recorrência gerada: ${rule.description}`);
       }
     }
-  }
+  }, []); 
 
-  // Função principal de busca
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Antes de buscar, roda o motor para garantir que tudo exista
       await checkRecurrences();
 
       const { data: txs, error } = await supabase
@@ -75,13 +60,13 @@ export default function Home() {
       if (error) throw error;
       setTransactions(txs || []);
 
-      const total = txs?.reduce((acc, curr) => {
+      const total = txs?.reduce((acc: number, curr: any) => {
         return curr.type === 'income' ? acc + Number(curr.amount) : acc - Number(curr.amount);
       }, 0);
       setBalance(total || 0);
 
-      const burn = txs?.filter(t => t.type === 'expense' && t.status === 'pending')
-        .reduce((acc, curr) => acc + Number(curr.amount), 0);
+      const burn = txs?.filter((t: any) => t.type === 'expense' && t.status === 'pending')
+        .reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
       setBurnRate(burn || 0);
 
     } catch (err) {
@@ -89,16 +74,15 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [checkRecurrences]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100">
       
-      {/* SIDEBAR */}
       <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6">
         <div className="mb-8">
           <Hexagon className="w-8 h-8 text-primary" strokeWidth={1.5} />
@@ -110,7 +94,6 @@ export default function Home() {
         </nav>
       </aside>
 
-      {/* MAIN */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <header className="h-14 border-b border-tactical bg-surface/80 backdrop-blur flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
