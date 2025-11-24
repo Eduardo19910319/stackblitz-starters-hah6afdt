@@ -29,7 +29,7 @@ export default function Home() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- NAVEGAÇÃO TEMPORAL (Quantum Jump) ---
+  // --- NAVEGAÇÃO TEMPORAL ---
   
   function changeMonth(offset: number) {
     const newDate = new Date(currentDate);
@@ -37,16 +37,15 @@ export default function Home() {
     setCurrentDate(newDate);
   }
 
-  // Pula direto para uma data específica via input nativo
+  // Correção: Usa data completa para funcionar no iPhone
   function handleDateJump(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.value) return;
-    const [year, month] = e.target.value.split('-');
-    // Cria a data no dia 02 para evitar problemas de fuso horário voltando o mês
-    const newDate = new Date(parseInt(year), parseInt(month) - 1, 2);
+    // O valor vem como "2025-11-24"
+    const [year, month, day] = e.target.value.split('-');
+    const newDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
     setCurrentDate(newDate);
   }
 
-  // Volta para o mês atual
   function resetToToday() {
     setCurrentDate(new Date());
   }
@@ -140,9 +139,9 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  // Formatações
   const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentDate).toUpperCase();
-  const inputDateValue = currentDate.toISOString().slice(0, 7); // Formato YYYY-MM para o input
+  // Formato YYYY-MM-DD para o input type="date"
+  const inputDateValue = currentDate.toISOString().split('T')[0];
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100 font-sans">
@@ -167,14 +166,12 @@ export default function Home() {
              </div>
           </div>
 
-          {/* NAVEGADOR TEMPORAL (AGORA COM INPUT OCULTO) */}
           <div className="flex items-center gap-2">
             
-            {/* Botão de Reset (Voltar para Hoje) */}
             <button 
                 onClick={resetToToday}
                 className="p-2 border border-zinc-800 bg-zinc-900 rounded-sm text-zinc-500 hover:text-primary transition-colors"
-                title="Voltar para o Mês Atual"
+                title="Voltar para Hoje"
             >
                 <Target className="w-4 h-4" />
             </button>
@@ -184,14 +181,13 @@ export default function Home() {
                     <ChevronLeft className="w-4 h-4" />
                 </button>
                 
-                {/* ÁREA CLICÁVEL COM INPUT ESCONDIDO */}
-                <div className="px-2 py-1 text-xs font-mono font-bold text-zinc-200 min-w-[140px] text-center border-x border-zinc-800 flex items-center justify-center gap-2 relative">
+                <div className="px-2 py-1 text-xs font-mono font-bold text-zinc-200 min-w-[140px] text-center border-x border-zinc-800 flex items-center justify-center gap-2 relative group">
                     <CalendarDays className="w-3 h-3 text-primary" />
                     <span>{monthLabel}</span>
                     
-                    {/* O SEGREDO: Input invisível que cobre o texto */}
+                    {/* INPUT CORRIGIDO: Ocupa toda a área e usa type="date" */}
                     <input 
-                        type="month" 
+                        type="date" 
                         value={inputDateValue}
                         onChange={handleDateJump}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
@@ -208,10 +204,9 @@ export default function Home() {
 
         <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 pb-20">
           
-          {/* CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            {/* Card 1: GLOBAL */}
+            {/* Card 1 */}
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-emerald-500/30 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Caixa Total (Real)</span>
@@ -223,7 +218,7 @@ export default function Home() {
               <div className="mt-2 text-[10px] text-zinc-500 font-mono">Disponível em contas</div>
             </div>
             
-            {/* Card 2: RESULTADO DO MÊS */}
+            {/* Card 2 */}
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-primary/30 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Balanço do Mês</span>
@@ -235,7 +230,7 @@ export default function Home() {
               <div className="mt-2 text-[10px] text-zinc-500 font-mono">Previsto (Entradas - Saídas)</div>
             </div>
 
-            {/* Card 3: PENDENTE */}
+            {/* Card 3 */}
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-alert/30 transition-colors">
                <div className="flex justify-between items-start mb-2">
                  <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">A Pagar ({monthLabel.split(' ')[0]})</span>
@@ -251,7 +246,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* LISTA DE TRANSAÇÕES */}
           <div className="border border-tactical bg-surface/30 min-h-[400px]">
             <div className="px-4 py-3 border-b border-tactical flex justify-between items-center bg-surface/50">
               <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2">
