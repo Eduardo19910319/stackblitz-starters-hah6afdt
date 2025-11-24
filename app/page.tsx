@@ -1,9 +1,24 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Upload, Loader2, Trash2, CheckCircle2, Clock } from "lucide-react";
+import { 
+  Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
+  Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle 
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
+
+// Mapa de Ícones (Igual ao do Modal)
+const CATEGORY_ICONS: Record<string, any> = {
+  moradia: Home,
+  alimentacao: ShoppingCart,
+  transporte: Car,
+  contas: Zap,
+  saude: Heart,
+  lazer: Gamepad2,
+  trabalho: Briefcase,
+  outros: HelpCircle
+};
 
 export default function Home() {
   const [loading, setLoading] = useState(true);
@@ -12,29 +27,24 @@ export default function Home() {
   const [burnRate, setBurnRate] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // AÇÃO: Alternar Status
   async function toggleStatus(id: string, currentStatus: string) {
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
-    
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
-
     await supabase.from('transactions').update({ status: newStatus }).eq('id', id);
-    fetchData();
+    fetchData(); 
   }
 
+  // AÇÃO: Deletar
   async function deleteTransaction(id: string) {
-    if (!confirm("Confirmar exclusão desta operação?")) return;
-
+    if (!confirm("Confirmar exclusão?")) return;
     setTransactions(prev => prev.filter(t => t.id !== id));
     await supabase.from('transactions').delete().eq('id', id);
     fetchData();
   }
 
   const checkRecurrences = useCallback(async () => {
-    const { data: rules } = await supabase
-      .from('recurrences')
-      .select('*')
-      .eq('active', true);
-
+    const { data: rules } = await supabase.from('recurrences').select('*').eq('active', true);
     if (!rules || rules.length === 0) return;
 
     const today = new Date();
@@ -42,23 +52,22 @@ export default function Home() {
 
     for (const rule of rules) {
       const lastGen = rule.last_generated_date ? rule.last_generated_date.slice(0, 7) : '';
-      
       if (lastGen !== currentMonthStr) {
         const dueDate = new Date(today.getFullYear(), today.getMonth(), rule.day_of_month);
         
+        // CORREÇÃO: Agora passamos a categoria também
         await supabase.from('transactions').insert({
           description: rule.description,
           amount: rule.amount,
           type: rule.type,
           account_id: rule.account_id,
           status: 'pending',
+          category: rule.category || 'outros', // Copia a categoria da regra
           date: dueDate.toISOString().split('T')[0],
           is_recurring: true
         });
-
-        await supabase.from('recurrences')
-          .update({ last_generated_date: dueDate.toISOString().split('T')[0] })
-          .eq('id', rule.id);
+        
+        await supabase.from('recurrences').update({ last_generated_date: dueDate.toISOString().split('T')[0] }).eq('id', rule.id);
       }
     }
   }, []); 
@@ -77,7 +86,7 @@ export default function Home() {
       setTransactions(txs || []);
 
       const total = txs?.reduce((acc: number, curr: any) => {
-        if (curr.status === 'pending' && curr.type === 'income') return acc;
+        if (curr.status === 'pending') return acc; 
         return curr.type === 'income' ? acc + Number(curr.amount) : acc - Number(curr.amount);
       }, 0);
       setBalance(total || 0);
@@ -120,7 +129,7 @@ export default function Home() {
               ONLINE
             </span>
           </div>
-          <div className="font-mono text-xs text-zinc-500">ADMIN</div>
+          <div className="font-mono text-xs text-zinc-500">SECURE</div>
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 pb-20">
@@ -168,15 +177,25 @@ export default function Home() {
                {loading ? (
                  <div className="p-8 text-center text-zinc-500 font-mono text-xs">BUSCANDO DADOS...</div>
                ) : transactions.length === 0 ? (
-                 <div className="p-8 text-center text-zinc-500 font-mono text-xs">SEM REGISTROS. INICIE A OPERAÇÃO.</div>
-               ) : transactions.map((t) => (
+                 <div className="p-8 text-center text-zinc-500 font-mono text-xs">SEM REGISTROS.</div>
+               ) : transactions.map((t) => {
+                 // Define o ícone com base na categoria
+                 const Icon = CATEGORY_ICONS[t.category] || HelpCircle;
+                 
+                 return (
                  <div key={t.id} className="px-4 py-3 grid grid-cols-12 gap-2 md:gap-4 items-center hover:bg-zinc-800/30 text-xs group transition-colors">
                     
-                    <div className="col-span-3 md:col-span-2 text-zinc-500 font-mono flex flex-col">
-                        <span className="text-zinc-300">{t.date && t.date.split('-').reverse().slice(0, 2).join('/')}</span>
-                        <span className="text-[9px] opacity-50">{t.date.split('-')[0]}</span>
+                    {/* DATA + ÍCONE DE CATEGORIA */}
+                    <div className="col-span-3 md:col-span-2 text-zinc-500 font-mono flex items-center gap-3">
+                        <div className="p-1.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
+                           <Icon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col">
+                           <span className="text-zinc-300">{t.date && t.date.split('-').reverse().slice(0, 2).join('/')}</span>
+                        </div>
                     </div>
 
+                    {/* DESCRIÇÃO */}
                     <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">
                         {t.description} 
                         <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">
@@ -185,13 +204,14 @@ export default function Home() {
                         </span>
                     </div>
 
+                    {/* VALOR */}
                     <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-success' : 'text-zinc-100'}`}>
                         {t.type === 'expense' ? '- ' : '+ '}
                         {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
 
+                    {/* CONTROLES */}
                     <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
-                        
                         <button 
                             onClick={() => toggleStatus(t.id, t.status)}
                             className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wide transition-all ${
@@ -204,15 +224,12 @@ export default function Home() {
                           {t.status === 'paid' ? 'PAGO' : 'PENDENTE'}
                         </button>
 
-                        <button 
-                            onClick={() => deleteTransaction(t.id)}
-                            className="text-zinc-600 hover:text-red-500 transition-colors p-1"
-                        >
+                        <button onClick={() => deleteTransaction(t.id)} className="text-zinc-600 hover:text-red-500 transition-colors p-1">
                             <Trash2 className="w-3.5 h-3.5" />
                         </button>
                     </div>
                  </div>
-               ))}
+               )})}
             </div>
           </div>
         </div>
