@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { 
   Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
-  Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays
+  Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays, Target
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
@@ -23,23 +23,37 @@ const CATEGORY_ICONS: Record<string, any> = {
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [globalBalance, setGlobalBalance] = useState(0); // Saldo Real (Banco)
-  const [monthBalance, setMonthBalance] = useState(0);   // Sobra do Mês
-  const [monthPending, setMonthPending] = useState(0);   // A Pagar no Mês
-  const [currentDate, setCurrentDate] = useState(new Date()); // Data do Filtro
+  const [globalBalance, setGlobalBalance] = useState(0);
+  const [monthBalance, setMonthBalance] = useState(0);
+  const [monthPending, setMonthPending] = useState(0);
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // --- NAVEGAÇÃO TEMPORAL ---
+  // --- NAVEGAÇÃO TEMPORAL (Quantum Jump) ---
+  
   function changeMonth(offset: number) {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + offset);
     setCurrentDate(newDate);
   }
 
+  // Pula direto para uma data específica via input nativo
+  function handleDateJump(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!e.target.value) return;
+    const [year, month] = e.target.value.split('-');
+    // Cria a data no dia 02 para evitar problemas de fuso horário voltando o mês
+    const newDate = new Date(parseInt(year), parseInt(month) - 1, 2);
+    setCurrentDate(newDate);
+  }
+
+  // Volta para o mês atual
+  function resetToToday() {
+    setCurrentDate(new Date());
+  }
+
   // --- AÇÕES ---
   async function toggleStatus(id: string, currentStatus: string) {
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
-    // Otimista
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
     await supabase.from('transactions').update({ status: newStatus }).eq('id', id);
     refreshAll(); 
@@ -52,9 +66,6 @@ export default function Home() {
     refreshAll();
   }
 
-  // --- BUSCA DE DADOS ---
-  
-  // 1. Motor de Recorrência (Roda sempre baseado no HOJE real)
   const checkRecurrences = useCallback(async () => {
     const { data: rules } = await supabase.from('recurrences').select('*').eq('active', true);
     if (!rules || rules.length === 0) return;
@@ -83,29 +94,26 @@ export default function Home() {
 
   const refreshAll = useCallback(() => {
     fetchData();
-  }, [currentDate]); // Recarrega se mudar a data
+  }, [currentDate]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       await checkRecurrences();
 
-      // Datas de Início e Fim do Mês Selecionado
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString();
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString();
 
-      // A. Busca Transações do MÊS (Lista)
       const { data: monthTxs, error } = await supabase
         .from('transactions')
         .select(`*, accounts(name)`)
         .gte('date', startOfMonth)
         .lte('date', endOfMonth)
-        .order('date', { ascending: true }); // Ordem cronológica para contas
+        .order('date', { ascending: true });
 
       if (error) throw error;
       setTransactions(monthTxs || []);
 
-      // B. Calcula Métricas do MÊS
       const mBalance = monthTxs?.reduce((acc: number, curr: any) => {
         return curr.type === 'income' ? acc + Number(curr.amount) : acc - Number(curr.amount);
       }, 0);
@@ -115,13 +123,7 @@ export default function Home() {
         .reduce((acc: number, curr: any) => acc + Number(curr.amount), 0);
       setMonthPending(mPending || 0);
 
-      // C. Busca Saldo GLOBAL (Tudo que já foi pago na história)
-      // Nota: Em app real, ideal é ter tabela de saldo, mas aqui somamos o histórico
-      const { data: allPaid } = await supabase
-        .from('transactions')
-        .select('amount, type')
-        .eq('status', 'paid');
-      
+      const { data: allPaid } = await supabase.from('transactions').select('amount, type').eq('status', 'paid');
       const gBalance = allPaid?.reduce((acc: number, curr: any) => {
         return curr.type === 'income' ? acc + Number(curr.amount) : acc - Number(curr.amount);
       }, 0);
@@ -138,14 +140,13 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  // Formatador de Data (Ex: "NOVEMBRO 2025")
-  const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' })
-    .format(currentDate).toUpperCase();
+  // Formatações
+  const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentDate).toUpperCase();
+  const inputDateValue = currentDate.toISOString().slice(0, 7); // Formato YYYY-MM para o input
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100 font-sans">
       
-      {/* SIDEBAR (Desktop) */}
       <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6 hidden md:flex">
         <div className="mb-8"><Hexagon className="w-8 h-8 text-primary" strokeWidth={1.5} /></div>
         <nav className="flex flex-col gap-6 w-full">
@@ -157,28 +158,51 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
         
-        {/* HEADER */}
         <header className="h-14 border-b border-tactical bg-surface/80 backdrop-blur flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-4">
              <Hexagon className="w-6 h-6 text-primary md:hidden" strokeWidth={1.5} />
              <div className="flex flex-col">
                 <span className="text-[10px] text-zinc-500 font-mono tracking-widest">SENTINEL OS</span>
-                <span className="text-xs font-bold text-zinc-100 tracking-wide hidden sm:block">DASHBOARD FINANCEIRO</span>
+                <span className="text-xs font-bold text-zinc-100 tracking-wide hidden sm:block">DASHBOARD</span>
              </div>
           </div>
 
-          {/* NAVEGADOR TEMPORAL */}
-          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-sm">
-            <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
-                <ChevronLeft className="w-4 h-4" />
+          {/* NAVEGADOR TEMPORAL (AGORA COM INPUT OCULTO) */}
+          <div className="flex items-center gap-2">
+            
+            {/* Botão de Reset (Voltar para Hoje) */}
+            <button 
+                onClick={resetToToday}
+                className="p-2 border border-zinc-800 bg-zinc-900 rounded-sm text-zinc-500 hover:text-primary transition-colors"
+                title="Voltar para o Mês Atual"
+            >
+                <Target className="w-4 h-4" />
             </button>
-            <div className="px-4 py-1 text-xs font-mono font-bold text-zinc-200 min-w-[140px] text-center border-x border-zinc-800 flex items-center justify-center gap-2">
-                <CalendarDays className="w-3 h-3 text-primary" />
-                {monthLabel}
+
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-sm relative">
+                <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors z-10">
+                    <ChevronLeft className="w-4 h-4" />
+                </button>
+                
+                {/* ÁREA CLICÁVEL COM INPUT ESCONDIDO */}
+                <div className="px-2 py-1 text-xs font-mono font-bold text-zinc-200 min-w-[140px] text-center border-x border-zinc-800 flex items-center justify-center gap-2 relative">
+                    <CalendarDays className="w-3 h-3 text-primary" />
+                    <span>{monthLabel}</span>
+                    
+                    {/* O SEGREDO: Input invisível que cobre o texto */}
+                    <input 
+                        type="month" 
+                        value={inputDateValue}
+                        onChange={handleDateJump}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-20"
+                    />
+                </div>
+
+                <button onClick={() => changeMonth(1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors z-10">
+                    <ChevronRight className="w-4 h-4" />
+                </button>
             </div>
-            <button onClick={() => changeMonth(1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
-                <ChevronRight className="w-4 h-4" />
-            </button>
+
           </div>
         </header>
 
@@ -187,7 +211,7 @@ export default function Home() {
           {/* CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             
-            {/* Card 1: GLOBAL (Banco) */}
+            {/* Card 1: GLOBAL */}
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-emerald-500/30 transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Caixa Total (Real)</span>
@@ -208,24 +232,20 @@ export default function Home() {
               <div className={`text-3xl font-mono tracking-tighter ${monthBalance >= 0 ? 'text-zinc-200' : 'text-alert'}`}>
                  {loading ? "..." : monthBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </div>
-              <div className="mt-2 text-[10px] text-zinc-500 font-mono">Entradas - Saídas (Previsto)</div>
+              <div className="mt-2 text-[10px] text-zinc-500 font-mono">Previsto (Entradas - Saídas)</div>
             </div>
 
             {/* Card 3: PENDENTE */}
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-alert/30 transition-colors">
                <div className="flex justify-between items-start mb-2">
-                 <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">A Pagar (Este Mês)</span>
+                 <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">A Pagar ({monthLabel.split(' ')[0]})</span>
                  <AlertTriangle className="w-4 h-4 text-alert" />
                </div>
                <div className="text-3xl font-mono text-alert tracking-tighter">
                   {loading ? "..." : monthPending.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                </div>
                
-               {/* Botão Novo Input */}
-               <button 
-                  onClick={() => setIsModalOpen(true)}
-                  className="w-full mt-3 py-2 border border-tactical bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 text-[10px] font-mono text-zinc-300 font-bold uppercase tracking-wider"
-                >
+               <button onClick={() => setIsModalOpen(true)} className="w-full mt-3 py-2 border border-tactical bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 text-[10px] font-mono text-zinc-300 font-bold uppercase tracking-wider">
                     <Plus className="w-3 h-3" /> Adicionar
                </button>
             </div>
@@ -251,7 +271,6 @@ export default function Home() {
                  return (
                  <div key={t.id} className={`px-4 py-3 grid grid-cols-12 gap-2 md:gap-4 items-center hover:bg-zinc-800/30 text-xs group transition-colors ${isLate ? 'bg-red-900/10' : ''}`}>
                     
-                    {/* DATA + ÍCONE */}
                     <div className="col-span-3 md:col-span-2 text-zinc-500 font-mono flex items-center gap-3">
                         <div className={`p-1.5 rounded border ${isLate ? 'border-red-900/30 bg-red-900/10 text-red-500' : 'border-zinc-800 bg-zinc-900 text-zinc-400'}`}>
                            <Icon className="w-3.5 h-3.5" />
@@ -262,7 +281,6 @@ export default function Home() {
                         </div>
                     </div>
 
-                    {/* DESCRIÇÃO */}
                     <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">
                         {t.description} 
                         <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">
@@ -271,13 +289,11 @@ export default function Home() {
                         </span>
                     </div>
 
-                    {/* VALOR */}
                     <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-emerald-500' : 'text-zinc-100'}`}>
                         {t.type === 'expense' ? '- ' : '+ '}
                         {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
 
-                    {/* CONTROLES */}
                     <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
                         <button 
                             onClick={() => toggleStatus(t.id, t.status)}
@@ -292,7 +308,6 @@ export default function Home() {
                           {t.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
                           {t.status === 'paid' ? 'PAGO' : 'ABERTO'}
                         </button>
-
                         <button onClick={() => deleteTransaction(t.id)} className="text-zinc-600 hover:text-red-500 transition-colors p-1">
                             <Trash2 className="w-3.5 h-3.5" />
                         </button>
