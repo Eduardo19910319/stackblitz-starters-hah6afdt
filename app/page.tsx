@@ -5,15 +5,17 @@ import {
   Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
   Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays, Target, 
   PieChart, List, TrendingUp, Upload, Pencil, Lock, BarChart3 
-} from "lucide-react"; // <--- ADICIONEI O BarChart3 AQUI
+} from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
 
+// --- CONSTANTES ---
 const CATEGORY_ICONS: Record<string, any> = { moradia: Home, alimentacao: ShoppingCart, transporte: Car, contas: Zap, saude: Heart, lazer: Gamepad2, trabalho: Briefcase, outros: HelpCircle };
 const CATEGORY_COLORS: Record<string, string> = { moradia: 'bg-blue-500', alimentacao: 'bg-orange-500', transporte: 'bg-yellow-500', contas: 'bg-purple-500', saude: 'bg-red-500', lazer: 'bg-pink-500', trabalho: 'bg-emerald-500', outros: 'bg-zinc-500' };
 const CATEGORY_LABELS: Record<string, string> = { moradia: 'Moradia', alimentacao: 'Alimentação', transporte: 'Transporte', contas: 'Contas', saude: 'Saúde', lazer: 'Lazer', trabalho: 'Trabalho', outros: 'Outros' };
 
 export default function Home() {
+  // --- ESTADOS ---
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [historyData, setHistoryData] = useState<any[]>([]);
@@ -26,6 +28,7 @@ export default function Home() {
   const [editData, setEditData] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'list' | 'analytics'>('list');
 
+  // --- NAVEGAÇÃO ---
   function changeMonth(offset: number) {
     const newDate = new Date(currentDate);
     newDate.setMonth(newDate.getMonth() + offset);
@@ -38,6 +41,7 @@ export default function Home() {
   }
   function resetToToday() { setCurrentDate(new Date()); }
 
+  // --- CRUD ---
   async function toggleStatus(id: string, currentStatus: string) {
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
     setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
@@ -50,10 +54,10 @@ export default function Home() {
     await supabase.from('transactions').delete().eq('id', id);
     refreshAll();
   }
-
   function handleEdit(transaction: any) { setEditData(transaction); setIsModalOpen(true); }
   function handleNew() { setEditData(null); setIsModalOpen(true); }
 
+  // --- IMPORTADOR ---
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -84,6 +88,7 @@ export default function Home() {
     reader.readAsText(file);
   }
 
+  // --- LÓGICA DE DADOS ---
   const checkRecurrences = useCallback(async () => {
     const { data: rules } = await supabase.from('recurrences').select('*').eq('active', true);
     if (!rules || rules.length === 0) return;
@@ -139,13 +144,13 @@ export default function Home() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // --- VARIÁVEIS DE RENDERIZAÇÃO ---
   const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentDate).toUpperCase();
   const inputDateValue = currentDate.toISOString().split('T')[0];
   const expenses = transactions.filter(t => t.type === 'expense');
   const totalExpense = expenses.reduce((acc, t) => acc + Number(t.amount), 0);
   const byCategory = expenses.reduce((acc: any, t) => { acc[t.category] = (acc[t.category] || 0) + Number(t.amount); return acc; }, {});
   const sortedCategories = Object.entries(byCategory).sort(([, a]: any, [, b]: any) => b - a).map(([cat, val]: any) => ({ cat, val, percent: totalExpense > 0 ? (val / totalExpense) * 100 : 0 }));
-  
   const maxChartVal = Math.max(...historyData.map(d => Math.max(d.income, d.expense)), 100);
   const getH = (val: number) => Math.max((val / maxChartVal) * 100, 2);
   const fixedCost = expenses.filter(t => t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
@@ -153,6 +158,8 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100 font-sans">
+      
+      {/* SIDEBAR (PC) */}
       <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6 hidden md:flex">
         <div className="mb-8"><Hexagon className="w-8 h-8 text-primary" strokeWidth={1.5} /></div>
         <nav className="flex flex-col gap-6 w-full">
@@ -160,7 +167,10 @@ export default function Home() {
         </nav>
       </aside>
 
+      {/* ÁREA PRINCIPAL */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
+        
+        {/* HEADER */}
         <header className="h-14 border-b border-tactical bg-surface/80 backdrop-blur flex items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-4">
              <Hexagon className="w-6 h-6 text-primary md:hidden" strokeWidth={1.5} />
@@ -189,7 +199,10 @@ export default function Home() {
           </div>
         </header>
 
+        {/* CONTEÚDO SCROLLÁVEL */}
         <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 pb-20">
+          
+          {/* 3 CARDS DE MÉTRICAS (SEMPRE VISÍVEIS) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-emerald-500/30">
               <div className="flex justify-between items-start mb-2"><span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Caixa Total</span><DollarSign className="w-4 h-4 text-emerald-600" /></div>
@@ -208,7 +221,10 @@ export default function Home() {
             </div>
           </div>
 
+          {/* SELEÇÃO DE VIEW: LISTA OU ANALYTICS */}
           {viewMode === 'list' ? (
+             
+             // --- BLOCO LISTA ---
              <div className="border border-tactical bg-surface/30 min-h-[400px]">
                 <div className="px-4 py-3 border-b border-tactical flex justify-between items-center bg-surface/50">
                   <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2"><Activity className="w-3 h-3" /> Extrato</h3>
@@ -234,7 +250,10 @@ export default function Home() {
                 )})}
                 </div>
              </div>
+
           ) : (
+            
+            // --- BLOCO ANALYTICS ---
             <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="border border-tactical bg-surface/30 p-5">
                     <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><TrendingUp className="w-3 h-3" /> Evolução (6 Meses)</h3>
@@ -257,6 +276,7 @@ export default function Home() {
                         </div>
                     )}
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="border border-tactical bg-surface/30 p-5">
                         <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-4"><PieChart className="w-3 h-3" /> Categorias</h3>
@@ -289,6 +309,7 @@ export default function Home() {
                 </div>
             </div>
           )}
+
         </div>
         <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSuccess={() => refreshAll()} initialData={editData} />
       </main>
