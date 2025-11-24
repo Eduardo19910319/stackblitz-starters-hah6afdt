@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { 
   Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
   Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays, Target, 
-  PieChart, List, TrendingUp, Upload, Pencil, Lock, BarChart3
-} from "lucide-react";
+  PieChart, List, TrendingUp, Upload, Pencil, Lock, BarChart3 
+} from "lucide-react"; // <--- ADICIONEI O BarChart3 AQUI
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
 
@@ -54,7 +54,6 @@ export default function Home() {
   function handleEdit(transaction: any) { setEditData(transaction); setIsModalOpen(true); }
   function handleNew() { setEditData(null); setIsModalOpen(true); }
 
-  // IMPORTADOR CSV
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -147,10 +146,8 @@ export default function Home() {
   const byCategory = expenses.reduce((acc: any, t) => { acc[t.category] = (acc[t.category] || 0) + Number(t.amount); return acc; }, {});
   const sortedCategories = Object.entries(byCategory).sort(([, a]: any, [, b]: any) => b - a).map(([cat, val]: any) => ({ cat, val, percent: totalExpense > 0 ? (val / totalExpense) * 100 : 0 }));
   
-  // Normalização robusta (evita NaN)
   const maxChartVal = Math.max(...historyData.map(d => Math.max(d.income, d.expense)), 100);
   const getH = (val: number) => Math.max((val / maxChartVal) * 100, 2);
-  
   const fixedCost = expenses.filter(t => t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
   const variableCost = expenses.filter(t => !t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
 
@@ -238,25 +235,20 @@ export default function Home() {
                 </div>
              </div>
           ) : (
-            // MODO ANALYTICS (CORRIGIDO)
             <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="border border-tactical bg-surface/30 p-5">
                     <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><TrendingUp className="w-3 h-3" /> Evolução (6 Meses)</h3>
-                    
-                    {/* GRÁFICO PROTEGIDO */}
                     {historyData.length === 0 ? (
                         <div className="h-32 flex flex-col items-center justify-center text-zinc-600 text-xs font-mono border border-dashed border-zinc-800 rounded">
                             <BarChart3 className="w-6 h-6 mb-2 opacity-50" />
-                            AGUARDANDO HISTÓRICO DE DADOS
+                            AGUARDANDO DADOS
                         </div>
                     ) : (
                         <div className="h-40 flex items-end justify-between gap-2 px-2">
                             {historyData.map((d, i) => (
                                 <div key={i} className="flex-1 flex flex-col justify-end items-center gap-2 group relative">
                                     <div className="w-full flex justify-center gap-1 h-32 items-end">
-                                        {/* Barra Receita */}
                                         <div style={{ height: `${getH(d.income)}%` }} className="w-2 bg-emerald-500/80 rounded-t-sm hover:bg-emerald-500 transition-all min-h-[4px]"></div>
-                                        {/* Barra Despesa */}
                                         <div style={{ height: `${getH(d.expense)}%` }} className="w-2 bg-red-500/80 rounded-t-sm hover:bg-red-500 transition-all min-h-[4px]"></div>
                                     </div>
                                     <span className="text-[9px] font-mono text-zinc-500 uppercase">{d.label}</span>
@@ -265,12 +257,11 @@ export default function Home() {
                         </div>
                     )}
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="border border-tactical bg-surface/30 p-5">
                         <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-4"><PieChart className="w-3 h-3" /> Categorias</h3>
                         <div className="space-y-3">
-                            {sortedCategories.length === 0 ? <p className="text-xs text-zinc-500 font-mono">Sem despesas no mês.</p> : sortedCategories.map((item: any) => {
+                            {sortedCategories.length === 0 ? <p className="text-xs text-zinc-500 font-mono">Sem dados.</p> : sortedCategories.map((item: any) => {
                                 const Icon = CATEGORY_ICONS[item.cat] || HelpCircle; const colorClass = CATEGORY_COLORS[item.cat] || 'bg-zinc-500';
                                 return (
                                 <div key={item.cat}>
@@ -280,10 +271,9 @@ export default function Home() {
                             )})}
                         </div>
                     </div>
-                    
                     <div className="border border-tactical bg-surface/30 p-5 flex flex-col">
                         <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><Lock className="w-3 h-3" /> Estrutura</h3>
-                        {totalExpense === 0 ? <p className="text-xs text-zinc-500 font-mono">Aguardando dados.</p> : (
+                        {totalExpense === 0 ? <p className="text-xs text-zinc-500 font-mono">Sem dados.</p> : (
                         <div className="flex-1 flex flex-col justify-center gap-6">
                             <div>
                                 <div className="flex justify-between text-xs mb-2"><span className="text-blue-400 font-mono uppercase">Fixos</span><span className="text-white font-mono">{fixedCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
