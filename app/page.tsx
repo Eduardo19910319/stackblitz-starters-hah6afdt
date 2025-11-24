@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Upload, Loader2 } from "lucide-react";
+import { Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Upload, Loader2, Trash2, CheckCircle2, Clock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
 
@@ -11,6 +11,23 @@ export default function Home() {
   const [balance, setBalance] = useState(0);
   const [burnRate, setBurnRate] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  async function toggleStatus(id: string, currentStatus: string) {
+    const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
+    
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+
+    await supabase.from('transactions').update({ status: newStatus }).eq('id', id);
+    fetchData();
+  }
+
+  async function deleteTransaction(id: string) {
+    if (!confirm("Confirmar exclusão desta operação?")) return;
+
+    setTransactions(prev => prev.filter(t => t.id !== id));
+    await supabase.from('transactions').delete().eq('id', id);
+    fetchData();
+  }
 
   const checkRecurrences = useCallback(async () => {
     const { data: rules } = await supabase
@@ -60,6 +77,7 @@ export default function Home() {
       setTransactions(txs || []);
 
       const total = txs?.reduce((acc: number, curr: any) => {
+        if (curr.status === 'pending' && curr.type === 'income') return acc;
         return curr.type === 'income' ? acc + Number(curr.amount) : acc - Number(curr.amount);
       }, 0);
       setBalance(total || 0);
@@ -81,7 +99,8 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100">
-      <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6">
+      
+      <aside className="w-16 border-r border-tactical bg-surface flex flex-col items-center py-6 hidden md:flex">
         <div className="mb-8">
           <Hexagon className="w-8 h-8 text-primary" strokeWidth={1.5} />
         </div>
@@ -95,19 +114,21 @@ export default function Home() {
       <main className="flex-1 flex flex-col overflow-hidden relative">
         <header className="h-14 border-b border-tactical bg-surface/80 backdrop-blur flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
-            <h1 className="text-sm font-bold tracking-widest text-zinc-100">SENTINEL <span className="text-zinc-600">//</span> OVERVIEW</h1>
-            <span className="px-2 py-0.5 rounded-sm bg-success/10 border border-success/20 text-[10px] text-success font-mono tracking-wider">
+            <Hexagon className="w-6 h-6 text-primary md:hidden" strokeWidth={1.5} />
+            <h1 className="text-sm font-bold tracking-widest text-zinc-100">SENTINEL <span className="text-zinc-600">//</span> OPS</h1>
+            <span className="px-2 py-0.5 rounded-sm bg-success/10 border border-success/20 text-[10px] text-success font-mono tracking-wider hidden sm:inline-block">
               ONLINE
             </span>
           </div>
-          <div className="font-mono text-xs text-zinc-500">ADMIN_USER</div>
+          <div className="font-mono text-xs text-zinc-500">ADMIN</div>
         </header>
 
-        <div className="flex-1 overflow-auto p-6 space-y-6 pb-20">
+        <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6 pb-20">
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-surface/50 border border-tactical p-5 relative group hover:border-primary/50 transition-colors">
               <div className="flex justify-between items-start mb-2">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Saldo Global</span>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Saldo Real (Pago)</span>
                 <DollarSign className="w-4 h-4 text-zinc-600" />
               </div>
               <div className="text-3xl font-mono text-white tracking-tighter">
@@ -127,14 +148,11 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-2">
-                <button className="flex-1 border border-tactical bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 text-xs font-mono text-zinc-300">
-                    <Upload className="w-4 h-4" /> IMPORTAR OFX
-                </button>
                 <button 
                   onClick={() => setIsModalOpen(true)}
-                  className="flex-1 border border-tactical bg-primary/10 hover:bg-primary/20 border-primary/20 transition-colors flex items-center justify-center gap-2 text-xs font-mono text-primary"
+                  className="flex-1 h-full min-h-[50px] border border-tactical bg-primary/10 hover:bg-primary/20 border-primary/20 transition-colors flex items-center justify-center gap-2 text-xs font-mono text-primary font-bold uppercase tracking-wider"
                 >
-                    <Plus className="w-4 h-4" /> NOVO LANCAMENTO
+                    <Plus className="w-4 h-4" /> Novo Input
                 </button>
             </div>
           </div>
@@ -142,7 +160,7 @@ export default function Home() {
           <div className="border border-tactical bg-surface/30 min-h-[400px]">
             <div className="px-4 py-3 border-b border-tactical flex justify-between items-center bg-surface/50">
               <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2">
-                <Activity className="w-3 h-3" /> Feed de Operações
+                <Activity className="w-3 h-3" /> Feed Operacional
               </h3>
             </div>
             
@@ -150,28 +168,48 @@ export default function Home() {
                {loading ? (
                  <div className="p-8 text-center text-zinc-500 font-mono text-xs">BUSCANDO DADOS...</div>
                ) : transactions.length === 0 ? (
-                 <div className="p-8 text-center text-zinc-500 font-mono text-xs">NENHUM REGISTRO ENCONTRADO</div>
+                 <div className="p-8 text-center text-zinc-500 font-mono text-xs">SEM REGISTROS. INICIE A OPERAÇÃO.</div>
                ) : transactions.map((t) => (
-                 <div key={t.id} className="px-4 py-3 grid grid-cols-12 gap-4 items-center hover:bg-zinc-800/30 text-xs group cursor-pointer">
-                    <div className="col-span-2 text-zinc-500 font-mono">{t.date && t.date.split('-').reverse().slice(0, 2).join('/')}</div>
-                    <div className="col-span-6 font-medium text-zinc-200">
+                 <div key={t.id} className="px-4 py-3 grid grid-cols-12 gap-2 md:gap-4 items-center hover:bg-zinc-800/30 text-xs group transition-colors">
+                    
+                    <div className="col-span-3 md:col-span-2 text-zinc-500 font-mono flex flex-col">
+                        <span className="text-zinc-300">{t.date && t.date.split('-').reverse().slice(0, 2).join('/')}</span>
+                        <span className="text-[9px] opacity-50">{t.date.split('-')[0]}</span>
+                    </div>
+
+                    <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">
                         {t.description} 
-                        <span className="text-zinc-600 font-normal block text-[10px]">
-                          {t.is_recurring && '🔄'} {t.accounts?.name || 'Conta Manual'}
+                        <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">
+                          {t.is_recurring && <Clock className="w-3 h-3 text-primary" />} 
+                          {t.accounts?.name || 'Manual'}
                         </span>
                     </div>
-                    <div className={`col-span-2 text-right font-mono ${t.type === 'income' ? 'text-success' : 'text-alert'}`}>
+
+                    <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-success' : 'text-zinc-100'}`}>
                         {t.type === 'expense' ? '- ' : '+ '}
                         {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </div>
-                    <div className="col-span-2 flex justify-end">
-                        <span className={`text-[9px] px-1.5 py-0.5 border rounded uppercase ${
-                          t.status === 'paid' ? 'border-success/20 text-success bg-success/10' : 
-                          t.status === 'late' ? 'border-alert/20 text-alert bg-alert/10' :
-                          'border-zinc-700 text-zinc-500'
-                        }`}>
-                          {t.status}
-                        </span>
+
+                    <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
+                        
+                        <button 
+                            onClick={() => toggleStatus(t.id, t.status)}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[9px] font-bold uppercase tracking-wide transition-all ${
+                            t.status === 'paid' 
+                                ? 'border-success/20 text-success bg-success/10 hover:bg-success/20' 
+                                : 'border-alert/20 text-alert bg-alert/10 hover:bg-alert/20'
+                            }`}
+                        >
+                          {t.status === 'paid' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                          {t.status === 'paid' ? 'PAGO' : 'PENDENTE'}
+                        </button>
+
+                        <button 
+                            onClick={() => deleteTransaction(t.id)}
+                            className="text-zinc-600 hover:text-red-500 transition-colors p-1"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                     </div>
                  </div>
                ))}
