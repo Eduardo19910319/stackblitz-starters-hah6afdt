@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { 
   Activity, AlertTriangle, DollarSign, Hexagon, LayoutDashboard, Plus, Loader2, Trash2, CheckCircle2, Clock, 
   Home, ShoppingCart, Car, Zap, Heart, Gamepad2, Briefcase, HelpCircle, ChevronLeft, ChevronRight, CalendarDays, Target, 
-  PieChart, List, TrendingUp, Upload, Pencil, Lock
+  PieChart, List, TrendingUp, Upload, Pencil, Lock, BarChart3
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import TransactionModal from "@/components/TransactionModal";
@@ -54,6 +54,7 @@ export default function Home() {
   function handleEdit(transaction: any) { setEditData(transaction); setIsModalOpen(true); }
   function handleNew() { setEditData(null); setIsModalOpen(true); }
 
+  // IMPORTADOR CSV
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -141,18 +142,17 @@ export default function Home() {
 
   const monthLabel = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(currentDate).toUpperCase();
   const inputDateValue = currentDate.toISOString().split('T')[0];
-  
-  // Analytics Data
   const expenses = transactions.filter(t => t.type === 'expense');
   const totalExpense = expenses.reduce((acc, t) => acc + Number(t.amount), 0);
   const byCategory = expenses.reduce((acc: any, t) => { acc[t.category] = (acc[t.category] || 0) + Number(t.amount); return acc; }, {});
   const sortedCategories = Object.entries(byCategory).sort(([, a]: any, [, b]: any) => b - a).map(([cat, val]: any) => ({ cat, val, percent: totalExpense > 0 ? (val / totalExpense) * 100 : 0 }));
   
-  // FIXO vs VARIÁVEL
-  const fixedCost = expenses.filter(t => t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
-  const variableCost = expenses.filter(t => !t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
+  // Normalização robusta (evita NaN)
   const maxChartVal = Math.max(...historyData.map(d => Math.max(d.income, d.expense)), 100);
   const getH = (val: number) => Math.max((val / maxChartVal) * 100, 2);
+  
+  const fixedCost = expenses.filter(t => t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
+  const variableCost = expenses.filter(t => !t.is_recurring).reduce((acc, t) => acc + Number(t.amount), 0);
 
   return (
     <div className="flex h-screen overflow-hidden relative z-10 text-zinc-100 font-sans">
@@ -173,13 +173,13 @@ export default function Home() {
              </div>
           </div>
           <div className="flex items-center gap-4">
-            <div className="relative">
+            <div className="relative hidden md:block">
                 <input type="file" accept=".csv" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer w-full" />
                 <button className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded hover:border-zinc-600 transition-colors text-xs font-mono text-zinc-400"><Upload className="w-3 h-3" /><span className="hidden sm:inline">CSV</span></button>
             </div>
             <div className="flex bg-zinc-900 rounded p-1 border border-zinc-800">
-                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded transition-all ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500'}`}><List className="w-4 h-4" /></button>
-                <button onClick={() => setViewMode('analytics')} className={`p-1.5 rounded transition-all ${viewMode === 'analytics' ? 'bg-primary/20 text-primary shadow' : 'text-zinc-500'}`}><TrendingUp className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('list')} className={`p-1.5 rounded transition-all ${viewMode === 'list' ? 'bg-zinc-800 text-white shadow' : 'text-zinc-500 hover:text-zinc-300'}`}><List className="w-4 h-4" /></button>
+                <button onClick={() => setViewMode('analytics')} className={`p-1.5 rounded transition-all ${viewMode === 'analytics' ? 'bg-primary/20 text-primary shadow' : 'text-zinc-500 hover:text-zinc-300'}`}><TrendingUp className="w-4 h-4" /></button>
             </div>
             <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-sm relative">
                 <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors z-10"><ChevronLeft className="w-4 h-4" /></button>
@@ -217,7 +217,7 @@ export default function Home() {
                   <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2"><Activity className="w-3 h-3" /> Extrato</h3>
                 </div>
                 <div className="divide-y divide-zinc-800/50">
-                {loading ? <div className="p-8 text-center text-zinc-500 font-mono text-xs">...</div> : transactions.map((t) => {
+                {loading ? <div className="p-8 text-center text-zinc-500 font-mono text-xs">...</div> : transactions.length === 0 ? <div className="p-8 text-center text-zinc-500 font-mono text-xs opacity-50">SEM DADOS NO MÊS SELECIONADO</div> : transactions.map((t) => {
                     const Icon = CATEGORY_ICONS[t.category] || HelpCircle;
                     const isLate = t.status === 'pending' && new Date(t.date) < new Date() && t.type === 'expense';
                     return (
@@ -226,7 +226,7 @@ export default function Home() {
                             <div className={`p-1.5 rounded border ${isLate ? 'border-red-900/30 bg-red-900/10 text-red-500' : 'border-zinc-800 bg-zinc-900 text-zinc-400'}`}><Icon className="w-3.5 h-3.5" /></div>
                             <div className="flex flex-col"><span className={`font-bold ${isLate ? 'text-red-400' : 'text-zinc-300'}`}>{t.date.split('-')[2]}</span><span className="text-[9px] uppercase">{new Date(t.date).toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0,3)}</span></div>
                         </div>
-                        <div className="col-span-5 md:col-span-6 font-medium text-zinc-200">{t.description} <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">{t.is_recurring && <Clock className="w-3 h-3 text-primary" />} {t.accounts?.name}</span></div>
+                        <div className="col-span-5 md:col-span-6 font-medium text-zinc-200 truncate">{t.description} <span className="text-zinc-600 font-normal block text-[10px] flex items-center gap-1">{t.is_recurring && <Clock className="w-3 h-3 text-primary" />} {t.accounts?.name}</span></div>
                         <div className={`col-span-4 md:col-span-2 text-right font-mono ${t.type === 'income' ? 'text-emerald-500' : 'text-zinc-100'}`}>{t.type === 'expense' ? '- ' : '+ '} {Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
                         <div className="col-span-12 md:col-span-2 flex justify-end items-center gap-3 mt-2 md:mt-0 border-t md:border-t-0 border-zinc-800 pt-2 md:pt-0">
                             <button onClick={() => handleEdit(t)} className="text-zinc-600 hover:text-primary transition-colors p-1"><Pencil className="w-3.5 h-3.5" /></button>
@@ -238,26 +238,39 @@ export default function Home() {
                 </div>
              </div>
           ) : (
+            // MODO ANALYTICS (CORRIGIDO)
             <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="border border-tactical bg-surface/30 p-5">
                     <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><TrendingUp className="w-3 h-3" /> Evolução (6 Meses)</h3>
-                    <div className="h-40 flex items-end justify-between gap-2 px-2">
-                        {historyData.map((d, i) => (
-                            <div key={i} className="flex-1 flex flex-col justify-end items-center gap-1 group relative">
-                                <div className="w-full max-w-[30px] flex flex-col gap-0.5 items-center justify-end h-32 relative">
-                                    <div style={{ height: `${getH(d.income)}%` }} className="w-1.5 bg-emerald-500 rounded-full opacity-80 group-hover:opacity-100 transition-all"></div>
-                                    <div style={{ height: `${getH(d.expense)}%` }} className="w-1.5 bg-red-500 rounded-full opacity-80 group-hover:opacity-100 transition-all absolute bottom-0 left-1/2 ml-1"></div>
+                    
+                    {/* GRÁFICO PROTEGIDO */}
+                    {historyData.length === 0 ? (
+                        <div className="h-32 flex flex-col items-center justify-center text-zinc-600 text-xs font-mono border border-dashed border-zinc-800 rounded">
+                            <BarChart3 className="w-6 h-6 mb-2 opacity-50" />
+                            AGUARDANDO HISTÓRICO DE DADOS
+                        </div>
+                    ) : (
+                        <div className="h-40 flex items-end justify-between gap-2 px-2">
+                            {historyData.map((d, i) => (
+                                <div key={i} className="flex-1 flex flex-col justify-end items-center gap-2 group relative">
+                                    <div className="w-full flex justify-center gap-1 h-32 items-end">
+                                        {/* Barra Receita */}
+                                        <div style={{ height: `${getH(d.income)}%` }} className="w-2 bg-emerald-500/80 rounded-t-sm hover:bg-emerald-500 transition-all min-h-[4px]"></div>
+                                        {/* Barra Despesa */}
+                                        <div style={{ height: `${getH(d.expense)}%` }} className="w-2 bg-red-500/80 rounded-t-sm hover:bg-red-500 transition-all min-h-[4px]"></div>
+                                    </div>
+                                    <span className="text-[9px] font-mono text-zinc-500 uppercase">{d.label}</span>
                                 </div>
-                                <span className="text-[9px] font-mono text-zinc-500 uppercase mt-2">{d.label}</span>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="border border-tactical bg-surface/30 p-5">
                         <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-4"><PieChart className="w-3 h-3" /> Categorias</h3>
                         <div className="space-y-3">
-                            {sortedCategories.map((item: any) => {
+                            {sortedCategories.length === 0 ? <p className="text-xs text-zinc-500 font-mono">Sem despesas no mês.</p> : sortedCategories.map((item: any) => {
                                 const Icon = CATEGORY_ICONS[item.cat] || HelpCircle; const colorClass = CATEGORY_COLORS[item.cat] || 'bg-zinc-500';
                                 return (
                                 <div key={item.cat}>
@@ -268,23 +281,20 @@ export default function Home() {
                         </div>
                     </div>
                     
-                    {/* GRÁFICO FIXO VS VARIÁVEL */}
                     <div className="border border-tactical bg-surface/30 p-5 flex flex-col">
                         <h3 className="text-xs font-bold tracking-widest text-zinc-400 uppercase flex items-center gap-2 mb-6"><Lock className="w-3 h-3" /> Estrutura</h3>
+                        {totalExpense === 0 ? <p className="text-xs text-zinc-500 font-mono">Aguardando dados.</p> : (
                         <div className="flex-1 flex flex-col justify-center gap-6">
                             <div>
-                                <div className="flex justify-between text-xs mb-2"><span className="text-blue-400 font-mono uppercase">Fixos (Recorrentes)</span><span className="text-white font-mono">{fixedCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                <div className="flex justify-between text-xs mb-2"><span className="text-blue-400 font-mono uppercase">Fixos</span><span className="text-white font-mono">{fixedCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                 <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{ width: `${totalExpense > 0 ? (fixedCost / totalExpense) * 100 : 0}%` }}></div></div>
                             </div>
                             <div>
-                                <div className="flex justify-between text-xs mb-2"><span className="text-yellow-400 font-mono uppercase">Variável (Avulso)</span><span className="text-white font-mono">{variableCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
+                                <div className="flex justify-between text-xs mb-2"><span className="text-yellow-400 font-mono uppercase">Variável</span><span className="text-white font-mono">{variableCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span></div>
                                 <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden"><div className="h-full bg-yellow-500" style={{ width: `${totalExpense > 0 ? (variableCost / totalExpense) * 100 : 0}%` }}></div></div>
                             </div>
-                            <div className="mt-4 p-3 bg-zinc-900/50 border border-zinc-800 rounded text-center">
-                                <span className="text-[10px] text-zinc-500 uppercase block mb-1">Total Saídas</span>
-                                <span className="text-xl font-mono text-zinc-200">{totalExpense.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                            </div>
                         </div>
+                        )}
                     </div>
                 </div>
             </div>
